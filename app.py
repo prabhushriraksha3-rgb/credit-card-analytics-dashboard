@@ -2,97 +2,79 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-# ----------------------------------
+# ---------------------------------------
 # Page Configuration
-# ----------------------------------
-
+# ---------------------------------------
 st.set_page_config(
     page_title="Credit Card Analytics Dashboard",
     page_icon="💳",
     layout="wide"
 )
 
-# ----------------------------------
-# Custom Styling
-# ----------------------------------
+# ---------------------------------------
+# Title
+# ---------------------------------------
+st.title("💳 Credit Card Analytics Dashboard")
+st.markdown("Analyze transactions, spending patterns, and fraud cases.")
 
-st.markdown("""
-<style>
-.main {
-    background-color: #f5f7fa;
-}
-h1 {
-    color: #1f4e79;
-}
-</style>
-""", unsafe_allow_html=True)
-
-# ----------------------------------
-# Load Dataset
-# ----------------------------------
-
+# ---------------------------------------
+# Load Data
+# ---------------------------------------
 @st.cache_data
 def load_data():
     return pd.read_csv("credit_card_transactions.csv")
 
 df = load_data()
 
-# ----------------------------------
-# Header
-# ----------------------------------
-
-st.title("💳 Credit Card Analytics Dashboard")
-st.markdown("### Analyze Credit Card Transactions and Fraud Trends")
-
-# ----------------------------------
+# ---------------------------------------
 # Sidebar Filters
-# ----------------------------------
-
+# ---------------------------------------
 st.sidebar.header("Filters")
 
-card_filter = st.sidebar.multiselect(
-    "Select Card Type",
+card_types = st.sidebar.multiselect(
+    "Card Type",
     options=df["Card_Type"].unique(),
     default=df["Card_Type"].unique()
 )
 
-status_filter = st.sidebar.multiselect(
-    "Select Transaction Status",
+statuses = st.sidebar.multiselect(
+    "Transaction Status",
     options=df["Transaction_Status"].unique(),
     default=df["Transaction_Status"].unique()
 )
 
 filtered_df = df[
-    (df["Card_Type"].isin(card_filter)) &
-    (df["Transaction_Status"].isin(status_filter))
+    (df["Card_Type"].isin(card_types)) &
+    (df["Transaction_Status"].isin(statuses))
 ]
 
-# ----------------------------------
-# KPI Section
-# ----------------------------------
-
+# ---------------------------------------
+# KPI Metrics
+# ---------------------------------------
 total_transactions = len(filtered_df)
 total_amount = filtered_df["Amount"].sum()
-fraud_count = filtered_df["Is_Fraud"].sum()
+fraud_cases = filtered_df["Is_Fraud"].sum()
 
-success_rate = (
-    len(filtered_df[filtered_df["Transaction_Status"] == "Success"])
-    / len(filtered_df)
-) * 100 if len(filtered_df) > 0 else 0
+if total_transactions > 0:
+    success_rate = (
+        (filtered_df["Transaction_Status"] == "Success").sum()
+        / total_transactions
+    ) * 100
+else:
+    success_rate = 0
 
 col1, col2, col3, col4 = st.columns(4)
 
-col1.metric("Transactions", total_transactions)
+col1.metric("Total Transactions", total_transactions)
 col2.metric("Total Amount", f"₹{total_amount:,.0f}")
-col3.metric("Fraud Cases", fraud_count)
+col3.metric("Fraud Cases", fraud_cases)
 col4.metric("Success Rate", f"{success_rate:.1f}%")
 
 st.divider()
 
-# ----------------------------------
-# Row 1 Charts
-# ----------------------------------
-
+# ---------------------------------------
+# Card Usage Chart
+# ---------------------------------------
 col1, col2 = st.columns(2)
 
 with col1:
@@ -109,68 +91,73 @@ with col1:
 with col2:
     st.subheader("Fraud Distribution")
 
-    fraud_data = filtered_df["Is_Fraud"].value_counts()
+    fraud_counts = filtered_df["Is_Fraud"].value_counts()
+
+    fraud_df = pd.DataFrame({
+        "Type": ["Genuine", "Fraud"],
+        "Count": [
+            fraud_counts.get(0, 0),
+            fraud_counts.get(1, 0)
+        ]
+    })
 
     fig = px.pie(
-        values=fraud_data.values,
-        names=["Genuine", "Fraud"]
+        fraud_df,
+        names="Type",
+        values="Count",
+        hole=0.4
     )
 
     st.plotly_chart(fig, use_container_width=True)
 
-# ----------------------------------
-# Spending Analysis
-# ----------------------------------
-
+# ---------------------------------------
+# Spending by Category
+# ---------------------------------------
 st.subheader("Spending by Merchant Category")
 
-category_data = (
+category_df = (
     filtered_df.groupby("Merchant_Category")["Amount"]
     .sum()
     .reset_index()
 )
 
 fig = px.bar(
-    category_data,
+    category_df,
     x="Merchant_Category",
     y="Amount",
-    text_auto=True,
-    title="Total Spending by Category"
+    text_auto=True
 )
 
 st.plotly_chart(fig, use_container_width=True)
 
-# ----------------------------------
+# ---------------------------------------
 # Transaction Amount Distribution
-# ----------------------------------
-
+# ---------------------------------------
 st.subheader("Transaction Amount Distribution")
 
 fig = px.histogram(
     filtered_df,
     x="Amount",
-    nbins=15,
-    title="Transaction Amount Histogram"
+    nbins=20
 )
 
 st.plotly_chart(fig, use_container_width=True)
 
-# ----------------------------------
+# ---------------------------------------
 # Top Customers
-# ----------------------------------
+# ---------------------------------------
+st.subheader("Top 10 Customers by Spending")
 
-st.subheader("Top Customers by Spending")
-
-top_customers = (
+customer_df = (
     filtered_df.groupby("Customer_ID")["Amount"]
     .sum()
     .reset_index()
-    .sort_values(by="Amount", ascending=False)
+    .sort_values("Amount", ascending=False)
     .head(10)
 )
 
 fig = px.bar(
-    top_customers,
+    customer_df,
     x="Customer_ID",
     y="Amount",
     text_auto=True
@@ -178,47 +165,51 @@ fig = px.bar(
 
 st.plotly_chart(fig, use_container_width=True)
 
-# ----------------------------------
-# Data Preview
-# ----------------------------------
-
-st.subheader("Transaction Data")
+# ---------------------------------------
+# Data Table
+# ---------------------------------------
+st.subheader("Transaction Records")
 
 st.dataframe(filtered_df, use_container_width=True)
 
-# ----------------------------------
+# ---------------------------------------
 # Business Insights
-# ----------------------------------
-
+# ---------------------------------------
 st.subheader("📈 Business Insights")
 
-most_used_card = filtered_df["Card_Type"].mode()[0]
+if len(filtered_df) > 0:
 
-highest_category = (
-    filtered_df.groupby("Merchant_Category")["Amount"]
-    .sum()
-    .idxmax()
-)
+    most_used_card = filtered_df["Card_Type"].mode()[0]
 
-avg_transaction = filtered_df["Amount"].mean()
+    highest_category = (
+        filtered_df.groupby("Merchant_Category")["Amount"]
+        .sum()
+        .idxmax()
+    )
 
-st.success(f"""
-✅ Total Transaction Value: ₹{total_amount:,.0f}
+    avg_transaction = filtered_df["Amount"].mean()
 
-✅ Most Used Card Type: {most_used_card}
+    st.success(
+        f"""
+• Total Transaction Value: ₹{total_amount:,.0f}
 
-✅ Highest Spending Category: {highest_category}
+• Most Used Card Type: {most_used_card}
 
-✅ Average Transaction Amount: ₹{avg_transaction:,.0f}
+• Highest Spending Category: {highest_category}
 
-✅ Fraud Transactions Detected: {fraud_count}
+• Average Transaction Amount: ₹{avg_transaction:,.0f}
 
-✅ Transaction Success Rate: {success_rate:.1f}%
-""")
+• Fraud Transactions: {fraud_cases}
 
-# ----------------------------------
+• Success Rate: {success_rate:.1f}%
+"""
+    )
+
+else:
+    st.warning("No data available for the selected filters.")
+
+# ---------------------------------------
 # Footer
-# ----------------------------------
-
+# ---------------------------------------
 st.markdown("---")
-st.caption("Credit Card Analytics Dashboard | Streamlit Project")
+st.caption("Built with Streamlit | Credit Card Analytics Dashboard")
