@@ -1,0 +1,34 @@
+import pandas as pd
+import joblib
+from sklearn.preprocessing import LabelEncoder
+
+# -----------------------------------
+# Load Dataset
+# -----------------------------------
+df = pd.read_csv("credit_card_transactions.csv")
+
+# -----------------------------------
+# Columns to encode
+# -----------------------------------
+categorical_columns = [
+    "Card_Type",
+    "Merchant_Category",
+    "Transaction_Status"
+]
+
+# -----------------------------------
+# Create encoders dictionary
+# -----------------------------------
+encoders = {}
+
+for col in categorical_columns:
+    le = LabelEncoder()
+    le.fit(df[col])          # learn categories
+    encoders[col] = le      # store encoder
+
+# -----------------------------------
+# Save encoders.pkl
+# -----------------------------------
+joblib.dump(encoders, "encoders.pkl")
+
+print("encoders.pkl created successfully!")
